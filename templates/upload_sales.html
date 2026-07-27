@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Upload Sales Data</h2>
+<p>File must be CSV or Excel with columns: <code>product_name, date, quantity, revenue</code></p>
+<form method="POST" enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
+    <div class="mb-3">
+        {{ form.file.label(class="form-label") }}
+        {{ form.file(class="form-control") }}
+    </div>
+    {{ form.submit(class="btn btn-primary") }}
+</form>
+{% endblock %}
