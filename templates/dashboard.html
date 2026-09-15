@@ -1,5 +1,128 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Welcome {{ current_user.username }}!</h1>
-<p>Use the navigation bar to manage your products and sales data.</p>
+<h1>Welcome {{ current_user.username }}</h1>
+<p>Select a product to view its 14-day sales forecast.</p>
+
+<form method="POST" class="mb-4">
+    <div class="row g-2 align-items-center">
+        <div class="col-auto">
+            <label for="product_id" class="col-form-label">Product:</label>
+        </div>
+        <div class="col-auto">
+            <select name="product_id" id="product_id" class="form-select" onchange="this.form.submit()">
+                <option value="">-- Choose a product --</option>
+                {% for p in products %}
+                    <option value="{{ p.id }}" {% if selected_product and selected_product.id == p.id %}selected{% endif %}>
+                        {{ p.name }} ({{ p.category }})
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</form>
+
+{% if selected_product %}
+    <h3>Forecast for {{ selected_product.name }}</h3>
+
+    {% if historical_dates %}
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Total Forecast (14 days)</h5>
+                    <p class="card-text display-6">₱{{ "%.2f"|format(forecast_values | sum) }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">Days of History</h5>
+                    <p class="card-text display-6">{{ historical_dates | length }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-secondary">
+                <div class="card-body">
+                    <h5 class="card-title">Forecast Days</h5>
+                    <p class="card-text display-6">{{ forecast_dates | length }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="salesChart" height="100"></canvas>
+    <script id="salesChartData" type="application/json">
+        {{ {
+            'historical_dates': historical_dates,
+            'historical_values': historical_values,
+            'forecast_dates': forecast_dates,
+            'forecast_values': forecast_values
+        } | tojson }}
+    </script>
+    {% else %}
+    <div class="alert alert-warning">
+        No sales data found for this product in the last 30 days. Please add or upload sales records first.
+    </div>
+    {% endif %}
+{% elif request.method == 'POST' %}
+    <div class="alert alert-warning">Please select a product.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if selected_product and historical_dates %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    const ctx = document.getElementById('salesChart').getContext('2d');
+
+    const chartData = JSON.parse(document.getElementById('salesChartData').textContent);
+    const histLabels = chartData.historical_dates;
+    const histValues = chartData.historical_values;
+    const foreLabels = chartData.forecast_dates;
+    const foreValues = chartData.forecast_values;
+
+    const allLabels = histLabels.concat(foreLabels);
+    const histData = histValues.concat(new Array(foreLabels.length).fill(null));
+    const foreData = new Array(histLabels.length).fill(null).concat(foreValues);
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: allLabels,
+            datasets: [
+                {
+                    label: 'Historical Sales',
+                    data: histData,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    tension: 0.2,
+                    fill: true
+                },
+                {
+                    label: '14-Day Forecast',
+                    data: foreData,
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    borderDash: [6, 6],
+                    tension: 0.2,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: { display: true, text: 'Sales History and Forecast' },
+                legend: { position: 'bottom' }
+            },
+            scales: {
+                x: { title: { display: true, text: 'Date' } },
+                y: { title: { display: true, text: 'Revenue (₱)' }, beginAtZero: true }
+            }
+        }
+    });
+</script>
+{% endif %}
 {% endblock %}

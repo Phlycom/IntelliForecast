@@ -1,16 +1,22 @@
-from flask import Blueprint, render_template, redirect, url_for, flash
+from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import date, timedelta
+import pandas as pd
+
 from models import db, User, Product, SalesRecord
 from forms import RegistrationForm, LoginForm, ProductForm, SalesEntryForm, UploadForm
-import pandas as pd
+from forecast_service import generate_forecast
 
 main = Blueprint('main', __name__)
 
-# --- Authentication Routes ---
+
+# ---------------- Authentication ----------------
+
 @main.route('/')
 def home():
     return render_template('base.html')
+
 
 @main.route('/register', methods=['GET', 'POST'])
 def register():
@@ -19,12 +25,15 @@ def register():
     form = RegistrationForm()
     if form.validate_on_submit():
         hashed_password = generate_password_hash(form.password.data)
-        user = User(username=form.username.data, email=form.email.data, password_hash=hashed_password)
+        user = User(username=form.username.data,
+                    email=form.email.data,
+                    password_hash=hashed_password)
         db.session.add(user)
         db.session.commit()
         flash('Registration successful! Please log in.', 'success')
         return redirect(url_for('main.login'))
     return render_template('register.html', form=form)
+
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():
@@ -41,38 +50,89 @@ def login():
             flash('Invalid email or password.', 'danger')
     return render_template('login.html', form=form)
 
+
 @main.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('main.home'))
 
-# --- Dashboard (FIXED) ---
-@main.route('/dashboard')
+
+# ---------------- Dashboard ----------------
+
+@main.route('/dashboard', methods=['GET', 'POST'])
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    products = Product.query.filter_by(user_id=current_user.id).all()
+    selected_product = None
+    historical_dates = []
+    historical_values = []
+    forecast_dates = []
+    forecast_values = []
 
-# --- Product Routes ---
+    if request.method == 'POST':
+        product_id = request.form.get('product_id')
+        if product_id:
+            product_id = int(product_id)
+            selected_product = Product.query.get(product_id)
+
+            today = date.today()
+            start_date = today - timedelta(days=30)
+            records = SalesRecord.query.filter(
+                SalesRecord.product_id == product_id,
+                SalesRecord.user_id == current_user.id,
+                SalesRecord.date >= start_date
+            ).order_by(SalesRecord.date).all()
+
+            daily = {}
+            for r in records:
+                daily[r.date] = daily.get(r.date, 0) + r.revenue
+
+            sorted_dates = sorted(daily.keys())
+            historical_dates = [d.isoformat() for d in sorted_dates]
+            historical_values = [daily[d] for d in sorted_dates]
+
+            forecast = generate_forecast(product_id, current_user.id, days=14)
+            forecast_dates = [f[0].isoformat() for f in forecast]
+            forecast_values = [f[1] for f in forecast]
+
+    return render_template(
+        'dashboard.html',
+        products=products,
+        selected_product=selected_product,
+        historical_dates=historical_dates,
+        historical_values=historical_values,
+        forecast_dates=forecast_dates,
+        forecast_values=forecast_values
+    )
+
+
+# ---------------- Products ----------------
+
 @main.route('/products')
 @login_required
 def list_products():
     products = Product.query.filter_by(user_id=current_user.id).all()
     return render_template('products.html', products=products)
 
+
 @main.route('/products/add', methods=['GET', 'POST'])
 @login_required
 def add_product():
     form = ProductForm()
     if form.validate_on_submit():
-        product = Product(name=form.name.data, category=form.category.data, user_id=current_user.id)
+        product = Product(name=form.name.data,
+                          category=form.category.data,
+                          user_id=current_user.id)
         db.session.add(product)
         db.session.commit()
         flash('Product added!', 'success')
         return redirect(url_for('main.list_products'))
     return render_template('add_product.html', form=form)
 
-# --- Sales Routes ---
+
+# ---------------- Sales ----------------
+
 @main.route('/sales/add', methods=['GET', 'POST'])
 @login_required
 def add_sales():
@@ -93,6 +153,7 @@ def add_sales():
         return redirect(url_for('main.dashboard'))
     return render_template('add_sales.html', form=form)
 
+
 @main.route('/sales/upload', methods=['GET', 'POST'])
 @login_required
 def upload_sales():
@@ -112,13 +173,15 @@ def upload_sales():
         for _, row in df.iterrows():
             product = Product.query.filter_by(name=row['product_name'], user_id=current_user.id).first()
             if not product:
-                product = Product(name=row['product_name'], category='Imported', user_id=current_user.id)
+                product = Product(name=row['product_name'],
+                                  category='Imported',
+                                  user_id=current_user.id)
                 db.session.add(product)
                 db.session.flush()
 
             try:
                 record_date = pd.to_datetime(row['date']).date()
-            except:
+            except Exception:
                 flash(f'Invalid date format in row: {row.to_dict()}', 'danger')
                 continue
 
