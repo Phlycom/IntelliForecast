@@ -74,7 +74,7 @@ def dashboard():
         product_id = request.form.get('product_id')
         if product_id:
             product_id = int(product_id)
-            selected_product = Product.query.get(product_id)
+            selected_product = db.session.get(Product, product_id)
 
             today = date.today()
             start_date = today - timedelta(days=30)
@@ -103,7 +103,8 @@ def dashboard():
         historical_dates=historical_dates,
         historical_values=historical_values,
         forecast_dates=forecast_dates,
-        forecast_values=forecast_values
+        forecast_values=forecast_values,
+        forecast_source="Nixtla TimeGPT",
     )
 
 

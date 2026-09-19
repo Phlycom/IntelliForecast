@@ -53,14 +53,6 @@
     </div>
 
     <canvas id="salesChart" height="100"></canvas>
-    <script id="salesChartData" type="application/json">
-        {{ {
-            'historical_dates': historical_dates,
-            'historical_values': historical_values,
-            'forecast_dates': forecast_dates,
-            'forecast_values': forecast_values
-        } | tojson }}
-    </script>
     {% else %}
     <div class="alert alert-warning">
         No sales data found for this product in the last 30 days. Please add or upload sales records first.
@@ -77,11 +69,10 @@
 <script>
     const ctx = document.getElementById('salesChart').getContext('2d');
 
-    const chartData = JSON.parse(document.getElementById('salesChartData').textContent);
-    const histLabels = chartData.historical_dates;
-    const histValues = chartData.historical_values;
-    const foreLabels = chartData.forecast_dates;
-    const foreValues = chartData.forecast_values;
+    const histLabels = {{ historical_dates | tojson }};
+    const histValues = {{ historical_values | tojson }};
+    const foreLabels = {{ forecast_dates | tojson }};
+    const foreValues = {{ forecast_values | tojson }};
 
     const allLabels = histLabels.concat(foreLabels);
     const histData = histValues.concat(new Array(foreLabels.length).fill(null));

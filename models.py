@@ -3,6 +3,7 @@ from flask_login import UserMixin
 
 db = SQLAlchemy()
 
+
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -10,11 +11,13 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(128))
     role = db.Column(db.String(20), default='viewer')
 
+
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     category = db.Column(db.String(50), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
 
 class SalesRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)

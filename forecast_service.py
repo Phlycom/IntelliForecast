@@ -1,17 +1,28 @@
-import random
+"""
+Forecast service using Nixtla TimeGPT.
+This module calls an external AI API - no machine learning code here.
+"""
+
+import os
+import pandas as pd
 from datetime import date, timedelta
-from models import SalesRecord
+from dotenv import load_dotenv
+from nixtla import NixtlaClient
+
+load_dotenv()
+
+client = NixtlaClient(api_key=os.getenv("TIMEGPT_API_KEY"))
 
 
 def generate_forecast(product_id, user_id, days=14):
     """
-    Mock forecast service.
-    Takes the last 30 days of sales for a product, computes a 7-day
-    moving average, and projects a 14-day forecast with slight variation.
-    This is a placeholder that will later be replaced with AWS Forecast API calls.
+    Fetches historical sales for a product and requests a forecast from TimeGPT.
+    Returns a list of (date, forecast_value) tuples.
     """
-    today = date.today()
-    start_date = today - timedelta(days=30)
+    from models import SalesRecord
+
+    end_date = date.today()
+    start_date = end_date - timedelta(days=60)
 
     records = SalesRecord.query.filter(
         SalesRecord.product_id == product_id,
@@ -22,25 +33,37 @@ def generate_forecast(product_id, user_id, days=14):
     if not records:
         return []
 
-    daily_totals = {}
+    daily = {}
     for r in records:
-        daily_totals[r.date] = daily_totals.get(r.date, 0) + r.revenue
+        daily[r.date] = daily.get(r.date, 0) + r.revenue
 
-    dates = sorted(daily_totals.keys())
+    start = min(daily.keys())
+    end = max(daily.keys())
+    filled = []
+    d = start
+    while d <= end:
+        filled.append({"ds": d.isoformat(), "y": daily.get(d, 0.0)})
+        d += timedelta(days=1)
 
-    if len(dates) < 7:
-        avg = sum(daily_totals.values()) / len(daily_totals)
-    else:
-        last_7 = [daily_totals[d] for d in dates[-7:]]
-        avg = sum(last_7) / 7
+    if len(filled) < 10:
+        return []
 
-    random.seed(42)
-    forecast = []
-    last_date = dates[-1]
-    for i in range(1, days + 1):
-        next_date = last_date + timedelta(days=i)
-        noise = random.uniform(-0.15, 0.15)
-        value = round(avg * (1 + noise + i * 0.01), 2)
-        forecast.append((next_date, value))
+    df = pd.DataFrame(filled)
 
-    return forecast
+    try:
+        forecast_df = client.forecast(
+            df=df,
+            h=days,
+            freq="D",
+            time_col="ds",
+            target_col="y",
+        )
+    except Exception as e:
+        print(f"TimeGPT API error: {e}")
+        return []
+
+    result = []
+    for _, row in forecast_df.iterrows():
+        result.append((row["ds"].date(), round(row["TimeGPT"], 2)))
+
+    return result
