@@ -6,7 +6,7 @@ import pandas as pd
 
 from models import db, User, Product, SalesRecord
 from forms import RegistrationForm, LoginForm, ProductForm, SalesEntryForm, UploadForm
-from forecast_service import generate_forecast
+from forecast_service import generate_forecast, generate_recommendation
 
 main = Blueprint('main', __name__)
 
@@ -69,6 +69,7 @@ def dashboard():
     historical_values = []
     forecast_dates = []
     forecast_values = []
+    recommendation = None
 
     if request.method == 'POST':
         product_id = request.form.get('product_id')
@@ -95,17 +96,18 @@ def dashboard():
             forecast = generate_forecast(product_id, current_user.id, days=14)
             forecast_dates = [f[0].isoformat() for f in forecast]
             forecast_values = [f[1] for f in forecast]
+            recommendation = generate_recommendation(forecast) if forecast else None
 
     return render_template(
-        'dashboard.html',
-        products=products,
-        selected_product=selected_product,
-        historical_dates=historical_dates,
-        historical_values=historical_values,
-        forecast_dates=forecast_dates,
-        forecast_values=forecast_values,
-        forecast_source="Nixtla TimeGPT",
-    )
+    'dashboard.html',
+    products=products,
+    selected_product=selected_product,
+    historical_dates=historical_dates,
+    historical_values=historical_values,
+    forecast_dates=forecast_dates,
+    forecast_values=forecast_values,
+    recommendation=recommendation,
+)
 
 
 # ---------------- Products ----------------

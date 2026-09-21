@@ -53,6 +53,37 @@
     </div>
 
     <canvas id="salesChart" height="100"></canvas>
+    {% if recommendation %}
+<div class="card mt-4 border-success">
+    <div class="card-header bg-success text-white">
+        <strong>Restocking Recommendation</strong>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Total forecasted demand (14 days):</strong> ₱{{ "%.2f"|format(recommendation.total_forecast) }}</p>
+                <p><strong>Average daily demand:</strong> ₱{{ "%.2f"|format(recommendation.avg_daily) }}</p>
+                <p><strong>Peak day:</strong> {{ recommendation.peak_date }} (₱{{ "%.2f"|format(recommendation.peak_value) }})</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Trend:</strong>
+                    {% if recommendation.trend == 'Rising' %}
+                        <span class="badge bg-success">{{ recommendation.trend }}</span>
+                    {% elif recommendation.trend == 'Falling' %}
+                        <span class="badge bg-danger">{{ recommendation.trend }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ recommendation.trend }}</span>
+                    {% endif %}
+                </p>
+                <p>{{ recommendation.trend_note }}</p>
+                <p><strong>Recommended restock ({{ recommendation.margin_label }}):</strong>
+                    <span class="text-success fw-bold">₱{{ "%.2f"|format(recommendation.recommended_restock) }}</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
     {% else %}
     <div class="alert alert-warning">
         No sales data found for this product in the last 30 days. Please add or upload sales records first.
